@@ -18,10 +18,13 @@ let musicVolume = 0.45;
 
 export type BgmTrack = "diorama" | "portals" | "tactics";
 
+// Use Vite base (./) so BGM works on GitHub project Pages (/blockscape/)
+// and CrazyGames iframes — not only on site root.
+const BGM_BASE = import.meta.env.BASE_URL;
 const BGM_URLS: Record<BgmTrack, string> = {
-  diorama: "/audio/Crystal Diorama.mp3",
-  portals: "/audio/Crystal Portal Drift.mp3",
-  tactics: "/audio/Crystal Tactics.mp3",
+  diorama: `${BGM_BASE}audio/Crystal Diorama.mp3`,
+  portals: `${BGM_BASE}audio/Crystal Portal Drift.mp3`,
+  tactics: `${BGM_BASE}audio/Crystal Tactics.mp3`,
 };
 
 let musicEl: HTMLAudioElement | null = null;
@@ -145,7 +148,7 @@ function ensureMusicEl(): HTMLAudioElement {
     musicEl = new Audio();
     musicEl.loop = true;
     musicEl.preload = "auto";
-    musicEl.crossOrigin = "anonymous";
+    // No crossOrigin — plain same-origin playback; CORS can block GH Pages media.
   }
   return musicEl;
 }
