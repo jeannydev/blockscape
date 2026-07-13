@@ -4,20 +4,41 @@
 
 Push crystals onto goals · plates & doors · ice · portals · **48 levels** · stars · mobile support · CrazyGames SDK v3.
 
-## Develop
+## Play / develop (local)
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Build for CrazyGames
+Open the URL Vite prints (usually `http://localhost:5173`).  
+**Do not** open raw `index.html` in the browser — CSS/JS are bundled by Vite, so styles will look broken.
+
+## Production build
 
 ```bash
-npm run verify   # levels + production build + Full Launch static checks
+npm run build
+npm run preview   # serve dist/ locally
+```
+
+Or full checks:
+
+```bash
+npm run verify   # levels + visual audit + production build + Full Launch static checks
 ```
 
 Upload everything in `dist/` via [developer.crazygames.com](https://developer.crazygames.com/).
+
+## GitHub Pages
+
+This repo deploys **built** `dist/` via GitHub Actions (not the source tree).
+
+1. Repo → **Settings → Pages**
+2. **Source:** GitHub Actions
+3. Push to `main` (or run the **Deploy GitHub Pages** workflow)
+4. Site URL: `https://ayturgan.github.io/blockscape/`
+
+Opening the repo’s raw `index.html` on GitHub (or `file://`) will show unstyled HTML — that is expected.
 
 See **[SUBMISSION.md](./SUBMISSION.md)** for store copy, Full Launch SDK checklist, and cover requirements.
 
