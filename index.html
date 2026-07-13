@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1"
+    />
+    <meta name="theme-color" content="#070b16" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="description"
+      content="Blockscape — 2.5D isometric puzzle. Push crystals, open doors, ride ice and portals across 48 levels."
+    />
+    <title>Blockscape — 2.5D Puzzle</title>
+    <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Cinzel:wght@600;700&family=JetBrains+Mono:wght@500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game-canvas"></canvas>
+
+      <!-- Atmospheric menu backdrop (CSS art over 3D scene) -->
+      <div id="menu-fx" class="menu-fx" aria-hidden="true">
+        <div class="menu-fx-glow"></div>
+        <div class="menu-fx-rays"></div>
+        <div class="menu-fx-vignette"></div>
+        <div class="menu-fx-grain"></div>
+      </div>
+
+      <div id="ui">
+        <!-- MAIN MENU -->
+        <section id="screen-title" class="screen screen-menu">
+          <div class="menu-shell menu-shell-main">
+            <header class="menu-hero">
+              <p class="menu-kicker" id="i18n-eyebrow">2.5D ISOMETRIC PUZZLE</p>
+              <h1 class="menu-logo">Blockscape</h1>
+              <p class="menu-tagline" id="i18n-tagline">
+                Push crystals. Open gates. Master ice and portals.
+              </p>
+            </header>
+
+            <nav class="menu-nav" id="nav-main" aria-label="Main menu">
+              <button id="btn-play" class="menu-btn menu-btn-primary" type="button">
+                <span class="menu-btn-key">01</span>
+                <span class="menu-btn-label" id="btn-play-label">Continue</span>
+                <span class="menu-btn-glyph" aria-hidden="true">✦</span>
+                <span class="menu-btn-hint">↵</span>
+              </button>
+              <button id="btn-levels" class="menu-btn" type="button">
+                <span class="menu-btn-key">02</span>
+                <span class="menu-btn-label" id="btn-levels-label">Level Select</span>
+                <span class="menu-btn-glyph" aria-hidden="true">▦</span>
+              </button>
+              <button id="btn-how" class="menu-btn" type="button">
+                <span class="menu-btn-key">03</span>
+                <span class="menu-btn-label" id="btn-how-label">How to Play</span>
+                <span class="menu-btn-glyph" aria-hidden="true">?</span>
+              </button>
+              <button id="btn-settings" class="menu-btn" type="button">
+                <span class="menu-btn-key">04</span>
+                <span class="menu-btn-label" id="btn-settings-label">Settings</span>
+                <span class="menu-btn-glyph" aria-hidden="true">⚙</span>
+              </button>
+            </nav>
+
+            <footer class="menu-footer">
+              <span id="menu-progress">48 levels</span>
+              <span class="menu-footer-sep">·</span>
+              <span id="i18n-footer-controls">WASD move · Drag orbit</span>
+            </footer>
+          </div>
+        </section>
+
+        <!-- SETTINGS -->
+        <section id="screen-settings" class="screen screen-menu hidden">
+          <div class="menu-shell menu-shell-panel">
+            <header class="panel-head">
+              <div>
+                <p class="menu-kicker" id="i18n-options">Options</p>
+                <h2 class="panel-title" id="i18n-settings-title">Settings</h2>
+              </div>
+              <button id="btn-settings-back" class="menu-btn menu-btn-ghost sm" type="button">
+                <span class="menu-btn-label" id="i18n-settings-back">Back</span>
+              </button>
+            </header>
+
+            <div class="settings-list">
+              <label class="setting-row">
+                <span class="setting-meta">
+                  <span class="setting-name" id="i18n-sfx-name">Sound effects</span>
+                  <span class="setting-desc" id="i18n-sfx-desc">Moves, pushes, UI feedback</span>
+                </span>
+                <button
+                  id="setting-sfx"
+                  class="toggle"
+                  type="button"
+                  role="switch"
+                  aria-checked="true"
+                >
+                  <span class="toggle-knob"></span>
+                </button>
+              </label>
+
+              <label class="setting-row">
+                <span class="setting-meta">
+                  <span class="setting-name" id="i18n-vol-name">SFX volume</span>
+                  <span class="setting-desc" id="i18n-vol-desc">Moves, pushes, UI feedback</span>
+                </span>
+                <div class="setting-control">
+                  <input
+                    id="setting-volume"
+                    class="slider"
+                    type="range"
+                    min="0"
+                    max="100"
+                    value="70"
+                    aria-label="SFX volume"
+                  />
+                  <span id="setting-volume-val" class="setting-value">70%</span>
+                </div>
+              </label>
+
+              <label class="setting-row">
+                <span class="setting-meta">
+                  <span class="setting-name" id="i18n-music-vol-name">Music volume</span>
+                  <span class="setting-desc" id="i18n-music-vol-desc">Background soundtrack</span>
+                </span>
+                <div class="setting-control">
+                  <input
+                    id="setting-music-volume"
+                    class="slider"
+                    type="range"
+                    min="0"
+                    max="100"
+                    value="45"
+                    aria-label="Music volume"
+                  />
+                  <span id="setting-music-volume-val" class="setting-value">45%</span>
+                </div>
+              </label>
+
+              <label class="setting-row">
+                <span class="setting-meta">
+                  <span class="setting-name" id="i18n-orbit-name">Camera auto-orbit</span>
+                  <span class="setting-desc" id="i18n-orbit-desc">Slow spin on menus</span>
+                </span>
+                <button
+                  id="setting-orbit"
+                  class="toggle"
+                  type="button"
+                  role="switch"
+                  aria-checked="true"
+                >
+                  <span class="toggle-knob"></span>
+                </button>
+              </label>
+
+              <div class="setting-row">
+                <span class="setting-meta">
+                  <span class="setting-name" id="i18n-lang-name">Language</span>
+                  <span class="setting-desc" id="i18n-lang-desc">Interface language</span>
+                </span>
+                <div class="lang-switch" role="group" aria-label="Language">
+                  <button id="lang-en" class="lang-btn active" type="button" data-lang="en">
+                    EN
+                  </button>
+                  <button id="lang-ru" class="lang-btn" type="button" data-lang="ru">
+                    RU
+                  </button>
+                </div>
+              </div>
+
+              <div class="setting-row setting-row-static">
+                <span class="setting-meta">
+                  <span class="setting-name" id="i18n-controls-name">Controls</span>
+                  <span class="setting-desc" id="i18n-controls-desc">
+                    WASD / arrows · Z undo · R restart · Drag camera · Esc menu
+                  </span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- LEVEL SELECT -->
+        <section id="screen-levels" class="screen screen-menu hidden">
+          <div class="menu-shell menu-shell-panel menu-shell-wide">
+            <header class="panel-head">
+              <div>
+                <p class="menu-kicker" id="i18n-campaign">Campaign</p>
+                <h2 class="panel-title" id="i18n-levels-title">Level Select</h2>
+              </div>
+              <button id="btn-levels-back" class="menu-btn menu-btn-ghost sm" type="button">
+                <span class="menu-btn-label" id="i18n-levels-back">Back</span>
+              </button>
+            </header>
+            <div id="level-grid" class="level-grid"></div>
+          </div>
+        </section>
+
+        <!-- HOW TO PLAY -->
+        <section id="screen-how" class="screen screen-menu hidden">
+          <div class="menu-shell menu-shell-panel">
+            <header class="panel-head">
+              <div>
+                <p class="menu-kicker" id="i18n-manual">Manual</p>
+                <h2 class="panel-title" id="i18n-how-title">How to Play</h2>
+              </div>
+              <button id="btn-how-back" class="menu-btn menu-btn-ghost sm" type="button">
+                <span class="menu-btn-label" id="i18n-how-back">Back</span>
+              </button>
+            </header>
+            <ul class="howto" id="howto-list">
+              <li><span class="dot player"></span><span class="howto-text"></span></li>
+              <li><span class="dot goal"></span><span class="howto-text"></span></li>
+              <li><span class="dot plate"></span><span class="howto-text"></span></li>
+              <li><span class="dot portal"></span><span class="howto-text"></span></li>
+              <li><span class="dot ice"></span><span class="howto-text"></span></li>
+              <li><span class="dot cam"></span><span class="howto-text"></span></li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- PAUSE -->
+        <section id="screen-pause" class="screen screen-menu screen-pause hidden">
+          <div class="menu-shell menu-shell-center">
+            <p class="menu-kicker" id="i18n-pause-kicker">Paused</p>
+            <h2 class="panel-title" id="i18n-pause-title">Game Paused</h2>
+            <nav class="menu-nav">
+              <button id="btn-resume" class="menu-btn menu-btn-primary" type="button">
+                <span class="menu-btn-label" id="i18n-resume">Resume</span>
+              </button>
+              <button id="btn-pause-restart" class="menu-btn" type="button">
+                <span class="menu-btn-label" id="i18n-pause-restart">Restart Level</span>
+              </button>
+              <button id="btn-pause-settings" class="menu-btn" type="button">
+                <span class="menu-btn-label" id="i18n-pause-settings">Settings</span>
+              </button>
+              <button id="btn-pause-menu" class="menu-btn menu-btn-ghost" type="button">
+                <span class="menu-btn-label" id="i18n-pause-menu">Main Menu</span>
+              </button>
+            </nav>
+          </div>
+        </section>
+
+        <!-- WIN -->
+        <section id="screen-win" class="screen screen-menu hidden">
+          <div class="menu-shell menu-shell-center menu-shell-win">
+            <p class="menu-kicker success" id="i18n-win-kicker">Level cleared</p>
+            <div id="win-stars" class="stars" aria-label="Stars">★★★</div>
+            <h2 id="win-title" class="panel-title">Great!</h2>
+            <p id="win-stats" class="menu-sub"></p>
+            <nav class="menu-nav menu-nav-row">
+              <button id="btn-next" class="menu-btn menu-btn-primary" type="button">
+                <span class="menu-btn-label" id="i18n-next">Next</span>
+              </button>
+              <button id="btn-win-restart" class="menu-btn" type="button">
+                <span class="menu-btn-label" id="i18n-again">Replay</span>
+              </button>
+              <button id="btn-win-menu" class="menu-btn menu-btn-ghost" type="button">
+                <span class="menu-btn-label" id="i18n-win-menu">Menu</span>
+              </button>
+            </nav>
+          </div>
+        </section>
+
+        <!-- HUD -->
+        <header id="hud" class="hud hidden" aria-label="Game HUD">
+          <div class="hud-main">
+            <div class="hud-meta">
+              <span id="level-title" class="hud-title"></span>
+              <span id="objective" class="hud-sub"></span>
+            </div>
+            <div class="hud-stats" aria-live="polite">
+              <div class="stat">
+                <span id="move-count">0</span>
+                <span class="stat-label" id="i18n-moves">moves</span>
+              </div>
+              <div class="stat">
+                <span id="goal-count">0/0</span>
+                <span class="stat-label" id="i18n-goals">goals</span>
+              </div>
+            </div>
+            <div class="hud-actions">
+              <button id="btn-undo" class="icon-btn" title="Undo (Z)" aria-label="Undo">↩</button>
+              <button id="btn-restart" class="icon-btn" title="Restart (R)" aria-label="Restart">↻</button>
+              <button id="btn-cam" class="icon-btn" title="Reset camera" aria-label="Reset camera">◎</button>
+              <button id="btn-mute" class="icon-btn" title="Toggle sound" aria-label="Toggle sound">♪</button>
+              <button id="btn-menu" class="icon-btn" title="Pause (Esc)" aria-label="Pause">☰</button>
+            </div>
+          </div>
+          <p class="hud-tip desktop-only" id="i18n-tip-desktop">
+            Drag orbit · Wheel zoom · WASD move · Z undo · R restart · Esc pause
+          </p>
+          <p class="hud-tip mobile-only" id="i18n-tip-mobile">
+            Drag orbit · Pinch zoom · Pad move · ☰ pause
+          </p>
+        </header>
+
+        <div id="hint" class="toast hidden" role="status"></div>
+
+        <!-- Blocks interaction during midgame ad request / playback (CrazyGames ads req) -->
+        <div id="ad-block" class="ad-block hidden" aria-hidden="true" role="status">
+          <div class="ad-block-spinner" aria-hidden="true"></div>
+          <p id="ad-block-text">Loading…</p>
+        </div>
+
+        <nav id="dpad" class="dpad hidden" aria-label="Movement">
+          <button type="button" class="dpad-btn" data-dir="up" aria-label="Up">▲</button>
+          <button type="button" class="dpad-btn" data-dir="left" aria-label="Left">◀</button>
+          <button type="button" class="dpad-btn" data-dir="down" aria-label="Down">▼</button>
+          <button type="button" class="dpad-btn" data-dir="right" aria-label="Right">▶</button>
+        </nav>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

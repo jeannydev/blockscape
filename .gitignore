@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+
+# Logs / cache
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+*.local
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Env / secrets
+.env
+.env.*
+
+# OS junk
+desktop.ini
+$null
+
+# Temp scripts / scratch
+scripts/tmp-*
+scripts/*.tmp

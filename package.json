@@ -1,0 +1,23 @@
+{
+  "name": "blockscape",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "verify-levels": "node scripts/verify-levels.mjs",
+    "verify-visual": "node scripts/audit-visual.mjs",
+    "verify-full-launch": "node scripts/verify-full-launch.mjs",
+    "verify": "npm run verify-levels && npm run verify-visual && npm run build && npm run verify-full-launch"
+  },
+  "dependencies": {
+    "three": "^0.172.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.172.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7"
+  }
+}
