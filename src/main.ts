@@ -76,7 +76,11 @@ const el = {
   btnRestart: document.getElementById("btn-restart")!,
   btnCam: document.getElementById("btn-cam")!,
   btnMute: document.getElementById("btn-mute")!,
+  btnPauseCam: document.getElementById("btn-pause-cam")!,
+  btnPauseMute: document.getElementById("btn-pause-mute")!,
   btnMenu: document.getElementById("btn-menu")!,
+  tipDesktop: document.getElementById("i18n-tip-desktop")!,
+  tipMobile: document.getElementById("i18n-tip-mobile")!,
   settingSfx: document.getElementById("setting-sfx")!,
   settingVolume: document.getElementById("setting-volume") as HTMLInputElement,
   settingVolumeVal: document.getElementById("setting-volume-val")!,
@@ -149,7 +153,7 @@ function applyLocale() {
   text("i18n-lang-name", s.language);
   text("i18n-lang-desc", s.languageDesc);
   text("i18n-controls-name", s.controls);
-  text("i18n-controls-desc", s.controlsDesc);
+  applyControlsCopy();
 
   text("i18n-campaign", s.campaign);
   text("i18n-levels-title", s.levelsTitle);
@@ -184,9 +188,42 @@ function applyLocale() {
   el.langEn.classList.toggle("active", getLang() === "en");
   el.langRu.classList.toggle("active", getLang() === "ru");
 
+  el.btnCam.title = s.resetCamera;
+  el.btnCam.setAttribute("aria-label", s.resetCamera);
+  el.btnPauseCam.title = s.resetCamera;
+  el.btnPauseCam.setAttribute("aria-label", s.resetCamera);
+
   updatePlayLabel(game.getProgress());
   renderLevelGrid(game.getProgress());
   updateMuteBtn();
+  updateHudTips(game.getCurrentLevelId());
+}
+
+function isCoarsePointer(): boolean {
+  try {
+    return window.matchMedia("(hover: none) and (pointer: coarse)").matches
+      || window.innerWidth <= 720;
+  } catch {
+    return window.innerWidth <= 720;
+  }
+}
+
+function applyControlsCopy() {
+  const s = t();
+  const mobile = isCoarsePointer();
+  text("i18n-controls-desc", mobile ? s.controlsDescMobile : s.controlsDesc);
+  text("i18n-footer-controls", mobile ? s.footerControlsMobile : s.footerControls);
+}
+
+/** HUD tips only for early campaign — avoid permanent clutter on mobile. */
+function updateHudTips(levelId: number) {
+  const s = t();
+  text("i18n-tip-desktop", s.tipDesktop);
+  text("i18n-tip-mobile", s.tipMobile);
+  const progress = game.getProgress();
+  const showTips = levelId <= 3 && progress.completed.length < 3;
+  el.tipDesktop.toggleAttribute("hidden", !showTips);
+  el.tipMobile.toggleAttribute("hidden", !showTips);
 }
 
 function syncSettingsUi() {
@@ -210,14 +247,15 @@ function syncSettingsUi() {
 function updateMuteBtn() {
   const muted = isMuted();
   const platform = isPlatformMuted();
-  el.btnMute.textContent = muted ? "♫" : "♪";
-  el.btnMute.title = platform
-    ? t().platformMuted
-    : muted
-      ? t().muted
-      : t().unmuted;
-  el.btnMute.classList.toggle("off", muted);
-  el.btnMute.toggleAttribute("disabled", platform);
+  const label = platform ? t().platformMuted : muted ? t().muted : t().unmuted;
+  const glyph = muted ? "♫" : "♪";
+  for (const btn of [el.btnMute, el.btnPauseMute]) {
+    btn.textContent = glyph;
+    btn.title = label;
+    btn.setAttribute("aria-label", label);
+    btn.classList.toggle("off", muted);
+    btn.toggleAttribute("disabled", platform);
+  }
 }
 
 function updatePlayLabel(progress: Progress) {
@@ -283,6 +321,8 @@ const game = new Game(canvas, {
     setScreen(s);
     if (s === "settings") syncSettingsUi();
     if (s === "title") updatePlayLabel(game.getProgress());
+    if (s === "play") updateHudTips(game.getCurrentLevelId());
+    if (s === "pause") updateMuteBtn();
   },
   onHud: (data) => {
     el.levelTitle.textContent = `${data.levelId}. ${data.name}`;
@@ -314,7 +354,8 @@ const game = new Game(canvas, {
     }
     el.hint.textContent = textVal;
     show(el.hint, true);
-    hintTimer = window.setTimeout(() => show(el.hint, false), 1400);
+    const ms = textVal === t().tipBeginner ? 2600 : 1600;
+    hintTimer = window.setTimeout(() => show(el.hint, false), ms);
   },
 });
 
@@ -527,8 +568,15 @@ el.btnMenu.addEventListener("click", () => {
 });
 el.btnUndo.addEventListener("click", () => game.undo());
 el.btnRestart.addEventListener("click", () => game.restart());
-el.btnCam.addEventListener("click", () => game.resetCamera());
-el.btnMute.addEventListener("click", () => {
+el.btnCam.addEventListener("click", () => {
+  sfx.click();
+  game.resetCamera();
+});
+el.btnPauseCam.addEventListener("click", () => {
+  sfx.click();
+  game.resetCamera();
+});
+function toggleMuteFromUi() {
   if (isPlatformMuted()) return;
   setMuted(!isUserMuted());
   updateMuteBtn();
@@ -537,7 +585,9 @@ el.btnMute.addEventListener("click", () => {
     resumeAudio();
     sfx.click();
   }
-});
+}
+el.btnMute.addEventListener("click", toggleMuteFromUi);
+el.btnPauseMute.addEventListener("click", toggleMuteFromUi);
 
 el.btnNext.addEventListener("click", () => {
   if (isAdUiLocked()) return;

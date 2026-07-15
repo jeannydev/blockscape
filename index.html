@@ -244,6 +244,10 @@
           <div class="menu-shell menu-shell-center">
             <p class="menu-kicker" id="i18n-pause-kicker">Paused</p>
             <h2 class="panel-title" id="i18n-pause-title">Game Paused</h2>
+            <div class="pause-quick" aria-label="Quick actions">
+              <button id="btn-pause-cam" class="icon-btn" type="button" title="Reset camera" aria-label="Reset camera">◎</button>
+              <button id="btn-pause-mute" class="icon-btn" type="button" title="Toggle sound" aria-label="Toggle sound">♪</button>
+            </div>
             <nav class="menu-nav">
               <button id="btn-resume" class="menu-btn menu-btn-primary" type="button">
                 <span class="menu-btn-label" id="i18n-resume">Resume</span>
@@ -302,16 +306,16 @@
             <div class="hud-actions">
               <button id="btn-undo" class="icon-btn" title="Undo (Z)" aria-label="Undo">↩</button>
               <button id="btn-restart" class="icon-btn" title="Restart (R)" aria-label="Restart">↻</button>
-              <button id="btn-cam" class="icon-btn" title="Reset camera" aria-label="Reset camera">◎</button>
-              <button id="btn-mute" class="icon-btn" title="Toggle sound" aria-label="Toggle sound">♪</button>
+              <button id="btn-cam" class="icon-btn hud-desktop-extra" title="Reset camera" aria-label="Reset camera">◎</button>
+              <button id="btn-mute" class="icon-btn hud-desktop-extra" title="Toggle sound" aria-label="Toggle sound">♪</button>
               <button id="btn-menu" class="icon-btn" title="Pause (Esc)" aria-label="Pause">☰</button>
             </div>
           </div>
-          <p class="hud-tip desktop-only" id="i18n-tip-desktop">
+          <p class="hud-tip desktop-only" id="i18n-tip-desktop" hidden>
             Drag orbit · Wheel zoom · WASD move · Z undo · R restart · Esc pause
           </p>
-          <p class="hud-tip mobile-only" id="i18n-tip-mobile">
-            Drag orbit · Pinch zoom · Pad move · ☰ pause
+          <p class="hud-tip mobile-only" id="i18n-tip-mobile" hidden>
+            Tap / pad · Drag orbit · ☰ menu
           </p>
         </header>
 

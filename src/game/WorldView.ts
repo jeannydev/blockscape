@@ -509,6 +509,33 @@ export class WorldView {
       Math.min(window.devicePixelRatio || 1, this.maxPixelRatio)
     );
     this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+    if (this.level) this.refitCameraToLevel();
+    else this.applyCamera();
+  }
+
+  /** Orthographic zoom / orbit distance for current viewport (portrait phones zoom in). */
+  private refitCameraToLevel() {
+    if (!this.level) return;
+    const span = Math.max(this.level.width, this.level.height);
+    const portrait = this.isCompactPortrait;
+    const phone =
+      portrait ||
+      this.quality === "low" ||
+      (typeof window !== "undefined" && window.innerWidth <= 720);
+    const minF = portrait ? 4.35 : phone ? 5.1 : 5.8;
+    const spanMul = portrait ? 0.52 : phone ? 0.62 : 0.72;
+    let base = Math.max(minF, span * spanMul);
+    if (portrait) base *= 0.92;
+    // Keep user zoom relative to previous base when possible.
+    const zoomRatio =
+      this.baseFrustum > 0.01 ? this.frustumSize / this.baseFrustum : 1;
+    this.baseFrustum = base;
+    this.frustumSize = THREE.MathUtils.clamp(base * zoomRatio, 3.5, 18);
+    this.camDistance = THREE.MathUtils.clamp(
+      (phone ? 12 : 14) + span * (phone ? 0.48 : 0.55),
+      phone ? 13 : 16,
+      phone ? 24 : 28
+    );
     this.applyCamera();
   }
 
@@ -632,16 +659,13 @@ export class WorldView {
 
     this.addPlayer(state.player.x, state.player.y);
 
-    // Center camera on map and fit frustum / orbit distance to board size
-    this.camTarget.set(0, 0.2, 0);
-    this.baseFrustum = Math.max(
-      this.isCompactPortrait ? 7.4 : 5.8,
-      span * 0.72
-    );
-    this.frustumSize = this.baseFrustum;
-    this.camDistance = THREE.MathUtils.clamp(14 + span * 0.55, 16, 28);
+    // Center camera on map and fit frustum / orbit distance to board size.
+    // Smaller frustum = larger board on screen (important for phone portrait).
+    this.camTarget.set(0, 0.15, 0);
     this.azimuth = Math.PI / 4;
-    this.polar = 0.95;
+    this.polar = this.isCompactPortrait ? 0.88 : 0.95;
+    this.refitCameraToLevel();
+    this.frustumSize = this.baseFrustum;
     this.applyCamera();
     this.syncImmediate(state);
   }
@@ -707,6 +731,19 @@ export class WorldView {
     mesh.castShadow = this.shadowsEnabled;
     this.root.add(mesh);
 
+    // Board edge always present so the level reads clearly without shadows.
+    const edge = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 0.04, 1),
+      new THREE.MeshStandardMaterial({
+        color: this.theme.base,
+        emissive: this.quality === "low" ? this.theme.accent : 0x000000,
+        emissiveIntensity: this.quality === "low" ? 0.06 : 0,
+        roughness: 1,
+      })
+    );
+    edge.position.set(pos.x, -0.11, pos.z);
+    this.root.add(edge);
+
     // A recessed panel gives the otherwise simple grid a crafted, modular look.
     // Skip translucent inlays on low — many transparent draws hurt mobile.
     if (this.quality === "low") return;
@@ -725,17 +762,6 @@ export class WorldView {
     );
     inlay.position.set(pos.x, 0.096, pos.z);
     this.root.add(inlay);
-
-    // thin edge
-    const edge = new THREE.Mesh(
-      new THREE.BoxGeometry(1, 0.04, 1),
-      new THREE.MeshStandardMaterial({
-        color: this.theme.base,
-        roughness: 1,
-      })
-    );
-    edge.position.set(pos.x, -0.11, pos.z);
-    this.root.add(edge);
   }
 
   private addWall(x: number, y: number) {
@@ -771,50 +797,56 @@ export class WorldView {
 
   private addGoal(x: number, y: number) {
     const group = new THREE.Group();
+    const low = this.quality === "low";
     const mat = new THREE.MeshStandardMaterial({
       color: this.theme.accentWarm,
       emissive: this.theme.accentWarm,
-      emissiveIntensity: 0.75,
+      emissiveIntensity: low ? 1.05 : 0.75,
       roughness: 0.35,
       metalness: 0.4,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.95,
     });
     this.pulseMats.push(mat);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.05, 10, 24), mat);
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.32, low ? 0.065 : 0.05, low ? 8 : 10, low ? 16 : 24),
+      mat
+    );
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.14;
     group.add(ring);
 
     const core = new THREE.Mesh(
-      new THREE.CircleGeometry(0.18, 20),
+      new THREE.CircleGeometry(0.2, low ? 12 : 20),
       new THREE.MeshStandardMaterial({
         color: this.theme.accentWarm,
         emissive: this.theme.accentWarm,
-        emissiveIntensity: 0.9,
+        emissiveIntensity: low ? 1.2 : 0.9,
         transparent: true,
-        opacity: 0.55,
+        opacity: low ? 0.72 : 0.55,
       })
     );
     core.rotation.x = -Math.PI / 2;
     core.position.y = 0.12;
     group.add(core);
 
-    const beam = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.11, 0.2, 0.72, 16, 1, true),
-      new THREE.MeshStandardMaterial({
-        color: this.theme.accentWarm,
-        emissive: this.theme.accentWarm,
-        emissiveIntensity: 0.65,
-        transparent: true,
-        opacity: 0.2,
-        side: THREE.DoubleSide,
-      })
-    );
-    beam.position.y = 0.46;
-    group.add(beam);
-    const rune = new THREE.Mesh(new THREE.OctahedronGeometry(0.09), mat);
-    rune.position.y = 0.55;
+    if (!low) {
+      const beam = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.11, 0.2, 0.72, 16, 1, true),
+        new THREE.MeshStandardMaterial({
+          color: this.theme.accentWarm,
+          emissive: this.theme.accentWarm,
+          emissiveIntensity: 0.65,
+          transparent: true,
+          opacity: 0.2,
+          side: THREE.DoubleSide,
+        })
+      );
+      beam.position.y = 0.46;
+      group.add(beam);
+    }
+    const rune = new THREE.Mesh(new THREE.OctahedronGeometry(low ? 0.11 : 0.09), mat);
+    rune.position.y = low ? 0.42 : 0.55;
     group.add(rune);
     group.position.copy(this.gridToWorld(x, y));
     this.root.add(group);
@@ -1086,7 +1118,7 @@ export class WorldView {
       new THREE.MeshBasicMaterial({
         color: accent,
         transparent: true,
-        opacity: 0.22,
+        opacity: this.quality === "low" ? 0.38 : 0.22,
         depthWrite: false,
       })
     );
@@ -1298,7 +1330,8 @@ export class WorldView {
     const mat = mesh.material as THREE.MeshStandardMaterial;
     mat.color.setHex(onGoal ? this.theme.accentWarm : this.theme.crate);
     mat.emissive.setHex(onGoal ? this.theme.accentWarm : this.theme.crate);
-    mat.emissiveIntensity = onGoal ? 0.65 : 0.24;
+    const low = this.quality === "low";
+    mat.emissiveIntensity = onGoal ? (low ? 0.95 : 0.65) : low ? 0.32 : 0.24;
     void state;
   }
 
@@ -1412,9 +1445,9 @@ export class WorldView {
       this.playerAvatar.scale.set(this.flameFlip * bobScale, bobScale, 1);
     }
 
-    // pulse materials (every other frame on low)
+    // pulse materials — stronger on low so goals stay readable without shadows
     if (!low || this.flameFrame % 2 === 0) {
-      const pulse = 0.35 + Math.sin(this.bobT * 2.5) * 0.15;
+      const pulse = (low ? 0.55 : 0.35) + Math.sin(this.bobT * 2.5) * (low ? 0.28 : 0.15);
       for (const m of this.pulseMats) {
         m.emissiveIntensity = pulse;
       }
@@ -1422,11 +1455,9 @@ export class WorldView {
 
     for (let i = 0; i < this.goalMarkers.length; i++) {
       const goal = this.goalMarkers[i];
-      if (!low) {
-        const s = 1 + Math.sin(this.bobT * 2.2 + i) * 0.08;
-        goal.scale.setScalar(s);
-      }
-      goal.rotation.y += dt * (low ? 0.35 : 0.7);
+      const s = 1 + Math.sin(this.bobT * 2.2 + i) * (low ? 0.1 : 0.08);
+      goal.scale.setScalar(s);
+      goal.rotation.y += dt * (low ? 0.55 : 0.7);
     }
     for (let i = 0; i < this.portalRings.length; i++) {
       const portal = this.portalRings[i];

@@ -305,7 +305,12 @@ export class Game {
     playBgm(bgmTrackForLevel(id));
     this.setScreen("play");
     this.pushHud();
-    this.ui.onHint(null);
+    // Short beginner toast on first levels only (HUD tip handles controls).
+    if (id <= 2 && !this.progress.completed.includes(id)) {
+      this.ui.onHint(t().tipBeginner);
+    } else {
+      this.ui.onHint(null);
+    }
     // Persist lastPlayed so Continue returns here after a menu visit.
     void this.saveProgress();
   }

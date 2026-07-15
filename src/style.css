@@ -1,7 +1,7 @@
 :root {
   --bg: #070b16;
-  --panel: rgba(10, 14, 28, 0.78);
-  --panel-solid: rgba(12, 18, 34, 0.94);
+  --panel: rgba(10, 14, 28, 0.82);
+  --panel-solid: rgba(10, 15, 30, 0.97);
   --line: rgba(160, 185, 255, 0.16);
   --line-strong: rgba(190, 210, 255, 0.35);
   --text: #eef2ff;
@@ -1061,6 +1061,10 @@ body[data-screen="title"] .screen-menu {
   color: rgba(143, 155, 184, 0.85);
 }
 
+.hud-tip[hidden] {
+  display: none !important;
+}
+
 .desktop-only {
   display: block;
 }
@@ -1145,6 +1149,28 @@ body.ad-locked #ad-block {
   pointer-events: auto;
 }
 
+/* —— Pause quick actions (cam / mute — used heavily on mobile) —— */
+.pause-quick {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin: -4px 0 4px;
+}
+
+.pause-quick .icon-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  font-size: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+
+.pause-quick .icon-btn.off {
+  opacity: 0.55;
+}
+
 /* —— D-pad —— */
 .dpad {
   position: absolute;
@@ -1169,10 +1195,12 @@ body.ad-locked #ad-block {
   cursor: pointer;
   box-shadow: var(--shadow);
   touch-action: manipulation;
+  transition: transform 0.08s ease, background 0.12s ease;
 }
 
 .dpad-btn:active {
-  background: rgba(126, 176, 255, 0.22);
+  background: rgba(126, 176, 255, 0.28);
+  transform: scale(0.94);
 }
 
 .dpad-btn[data-dir="up"] {
@@ -1306,15 +1334,20 @@ body.ad-locked #ad-block {
     align-items: baseline;
   }
 
+  /* Slim HUD: camera + mute live in pause menu on phones */
+  .hud-desktop-extra {
+    display: none !important;
+  }
+
   .icon-btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 11px;
-    font-size: 15px;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    font-size: 16px;
   }
 
   .hud-actions {
-    gap: 4px;
+    gap: 6px;
   }
 
   .hud-title {
@@ -1337,33 +1370,68 @@ body.ad-locked #ad-block {
   .hud-tip {
     align-self: flex-start;
     margin: 0 4px;
-    padding: 5px 8px;
-    border: 1px solid rgba(145, 176, 238, 0.14);
+    padding: 6px 10px;
+    border: 1px solid rgba(145, 176, 238, 0.16);
     border-radius: 999px;
-    background: rgba(6, 11, 26, 0.54);
-    color: #aebedd;
-    font-size: 10px;
+    background: rgba(6, 11, 26, 0.72);
+    color: #c0d0ee;
+    font-size: 11px;
+  }
+
+  .hud-tip[hidden] {
+    display: none !important;
   }
 
   .toast {
     top: auto;
-    bottom: calc(var(--pad-b) + 164px);
+    bottom: calc(var(--pad-b) + 188px);
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    max-width: min(320px, calc(100vw - 32px));
+    text-align: center;
+    padding: 10px 14px;
+    font-size: 13px;
+    background: rgba(8, 14, 30, 0.94);
+    border: 1px solid color-mix(in srgb, var(--chapter-accent) 35%, var(--line));
+  }
+
+  .menu-shell-panel,
+  .menu-shell-center {
+    background: rgba(8, 12, 26, 0.97);
+  }
+
+  .setting-row-static .setting-desc {
+    line-height: 1.4;
+  }
+
+  /* Soft ground vignette so the board sits better above the d-pad */
+  body[data-screen="play"] #app::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    background:
+      radial-gradient(ellipse 90% 55% at 50% 100%, rgba(4, 8, 18, 0.55), transparent 62%),
+      radial-gradient(ellipse 80% 40% at 50% 0%, rgba(4, 8, 18, 0.35), transparent 55%);
   }
 
   .dpad {
     display: grid;
-    width: 144px;
-    height: 144px;
-    right: max(14px, env(safe-area-inset-right, 0px));
-    bottom: calc(var(--pad-b) + 16px);
-    gap: 5px;
+    width: 168px;
+    height: 168px;
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: calc(var(--pad-b) + 14px);
+    gap: 7px;
   }
 
   .dpad-btn {
-    border-radius: 16px;
-    background: linear-gradient(145deg, rgba(17, 30, 58, 0.96), rgba(7, 13, 30, 0.94));
-    border-color: rgba(145, 176, 238, 0.24);
-    font-size: 15px;
+    border-radius: 18px;
+    background: linear-gradient(145deg, rgba(20, 34, 64, 0.97), rgba(8, 14, 32, 0.95));
+    border-color: rgba(145, 176, 238, 0.28);
+    font-size: 17px;
+    min-height: 48px;
   }
 
   .level-grid {
@@ -1416,6 +1484,12 @@ body.ad-locked #ad-block {
   }
   .mobile-only {
     display: block;
+  }
+  .mobile-only[hidden] {
+    display: none !important;
+  }
+  .hud-desktop-extra {
+    display: none !important;
   }
   .dpad {
     display: grid;

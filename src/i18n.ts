@@ -34,6 +34,7 @@ type Dict = {
   languageDesc: string;
   controls: string;
   controlsDesc: string;
+  controlsDescMobile: string;
   options: string;
   campaign: string;
   levelsTitle: string;
@@ -45,7 +46,10 @@ type Dict = {
   goals: string;
   tipDesktop: string;
   tipMobile: string;
+  tipBeginner: string;
   footerControls: string;
+  footerControlsMobile: string;
+  resetCamera: string;
   howItems: readonly string[];
   cameraReset: string;
   nothingUndo: string;
@@ -96,6 +100,7 @@ const en: Dict = {
   languageDesc: "Interface language",
   controls: "Controls",
   controlsDesc: "WASD / arrows · Z undo · R restart · Drag camera · Esc menu",
+  controlsDescMobile: "Tap tile · D-pad · Drag orbit · ☰ pause",
   options: "Options",
   campaign: "Campaign",
   levelsTitle: "Level Select",
@@ -106,8 +111,11 @@ const en: Dict = {
   moves: "moves",
   goals: "goals",
   tipDesktop: "Click tile · Drag orbit · WASD · Z undo · R restart · Esc pause",
-  tipMobile: "Tap tile · Drag orbit · Pad · ☰ pause",
+  tipMobile: "Tap / pad · Drag orbit · ☰ menu",
+  tipBeginner: "Push the crystal onto the orange goal",
   footerControls: "Click tile · WASD · Drag orbit",
+  footerControlsMobile: "Tap · Pad · Drag orbit",
+  resetCamera: "Reset camera",
   howItems: [
     "Walk the grid and push crystals onto orange goals",
     "Every goal needs a crystal — Undo if you get stuck",
@@ -175,6 +183,7 @@ const ru: Dict = {
   languageDesc: "Язык интерфейса",
   controls: "Управление",
   controlsDesc: "WASD / стрелки · Z отмена · R заново · Тяни камеру · Esc меню",
+  controlsDescMobile: "Тап · Пад · Тяни обзор · ☰ пауза",
   options: "Параметры",
   campaign: "Кампания",
   levelsTitle: "Выбор уровня",
@@ -185,8 +194,11 @@ const ru: Dict = {
   moves: "ходы",
   goals: "цели",
   tipDesktop: "Клик по клетке · Тяни обзор · WASD · Z отмена · R · Esc пауза",
-  tipMobile: "Тап по клетке · Тяни обзор · Пад · ☰ пауза",
+  tipMobile: "Тап / пад · Тяни обзор · ☰ меню",
+  tipBeginner: "Затолкни кристалл на оранжевую цель",
   footerControls: "Клик по клетке · WASD · Тяни обзор",
+  footerControlsMobile: "Тап · Пад · Тяни обзор",
+  resetCamera: "Сброс камеры",
   howItems: [
     "Ходи по клеткам и толкай кристаллы на оранжевые цели",
     "Каждая цель нужна кристаллу — используй отмену, если застрял",
