@@ -11,6 +11,7 @@ import {
 } from "./i18n";
 import {
   bgmTrackForLevel,
+  bindAudioLifecycle,
   getMusicVolume,
   getVolume,
   isMuted,
@@ -395,9 +396,8 @@ document.addEventListener(
   },
   { passive: true }
 );
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") resumeAudio();
-});
+// Pause BGM/SFX when leaving this tab; resume when returning.
+bindAudioLifecycle();
 
 el.btnPlay.addEventListener("click", () => {
   resumeAudio();

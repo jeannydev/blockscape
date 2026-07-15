@@ -1,6 +1,7 @@
 /**
  * Audio: procedural SFX (Web Audio) + looping BGM from /public/audio.
- * Mute layers: user · CrazyGames platform · midgame ad.
+ * Mute layers: user · CrazyGames platform · midgame ad · hidden tab.
+ * BGM pauses when the tab is backgrounded so music does not leak into other tabs.
  */
 
 let ctx: AudioContext | null = null;
@@ -15,6 +16,9 @@ let adMuted = false;
 let sfxVolume = 0.7;
 /** Music master (0–1). */
 let musicVolume = 0.45;
+/** False while document is hidden (other tab / minimized / browser background). */
+let tabVisible =
+  typeof document === "undefined" || document.visibilityState !== "hidden";
 
 export type BgmTrack = "diorama" | "portals" | "tactics";
 
@@ -37,9 +41,14 @@ function ac(): AudioContext {
   return ctx;
 }
 
-/** True when no game audio should play (user, platform, or ad). */
+/** True when no game audio should play (user, platform, ad, or hidden tab). */
 export function isEffectivelyMuted(): boolean {
-  return userMuted || platformMuted || adMuted;
+  return userMuted || platformMuted || adMuted || !tabVisible;
+}
+
+/** Whether this tab is currently visible (audio allowed to play). */
+export function isTabVisible(): boolean {
+  return tabVisible;
 }
 
 /**
@@ -164,9 +173,32 @@ function applyMusicVolume() {
 }
 
 /**
- * Resume WebAudio + try to keep BGM playing after gesture / tab focus.
+ * Immediately stop all output when the tab is not visible.
+ * Keeps `musicWanted` / currentTrack so audio can resume on return.
+ */
+export function pauseForBackground() {
+  tabVisible = false;
+  window.clearInterval(fadeTimer);
+  if (musicEl && !musicEl.paused) {
+    musicEl.pause();
+  }
+  try {
+    if (ctx && ctx.state === "running") void ctx.suspend();
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Resume WebAudio + BGM after gesture / tab focus.
+ * No-ops while the document is hidden (other tab / minimized).
  */
 export function resumeAudio() {
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+    tabVisible = false;
+    return;
+  }
+  tabVisible = true;
   try {
     const c = ac();
     // "interrupted" is used on some WebKit builds after backgrounding.
@@ -184,6 +216,28 @@ export function resumeAudio() {
   }
 }
 
+/** Wire tab visibility → pause/resume (idempotent). */
+let lifecycleBound = false;
+export function bindAudioLifecycle() {
+  if (lifecycleBound || typeof document === "undefined") return;
+  lifecycleBound = true;
+
+  const sync = () => {
+    if (document.visibilityState === "hidden") {
+      pauseForBackground();
+    } else {
+      resumeAudio();
+    }
+  };
+
+  document.addEventListener("visibilitychange", sync);
+  // pagehide: tab discarded / browser background on some mobile browsers
+  window.addEventListener("pagehide", () => pauseForBackground());
+  window.addEventListener("pageshow", () => resumeAudio());
+  // Initial state (e.g. restored background tab)
+  if (document.visibilityState === "hidden") pauseForBackground();
+}
+
 /** Map campaign chapter (1–5) → BGM variation. */
 export function bgmTrackForChapter(chapter: number): BgmTrack {
   if (chapter <= 2) return "diorama";
@@ -199,7 +253,7 @@ export function bgmTrackForLevel(levelId: number): BgmTrack {
   return "tactics";
 }
 
-/** Soft-switch BGM; no-ops if already on this track. */
+/** Soft-switch BGM; no-ops if already on this track. Does not play while tab is hidden. */
 export function playBgm(track: BgmTrack) {
   musicWanted = true;
   const el = ensureMusicEl();
@@ -207,7 +261,7 @@ export function playBgm(track: BgmTrack) {
 
   if (currentTrack === track && el.src && !el.error) {
     applyMusicVolume();
-    if (el.paused && effectiveMusicGain() > 0) {
+    if (tabVisible && el.paused && effectiveMusicGain() > 0) {
       void el.play().catch(() => {
         /* ignore */
       });
@@ -223,6 +277,7 @@ export function playBgm(track: BgmTrack) {
   }
 
   applyMusicVolume();
+  if (!tabVisible) return;
   void el.play().catch(() => {
     /* needs user gesture — resumeAudio will retry */
   });
