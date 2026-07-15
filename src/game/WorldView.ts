@@ -71,34 +71,45 @@ function smoothstep(t: number) {
   return t * t * (3 - 2 * t);
 }
 
-/** Mobile / low-end profile for WebGL cost. */
+/**
+ * Render quality profile.
+ * LOW is only for real phones/tablets — never strip desktop/PC visuals
+ * just because of RAM, core count, or a touch-capable laptop.
+ */
 export type RenderQuality = "high" | "low";
 
-function detectRenderQuality(): RenderQuality {
-  if (typeof window === "undefined" || typeof navigator === "undefined") {
-    return "high";
+function isPhoneOrTablet(): boolean {
+  if (typeof navigator === "undefined" || typeof window === "undefined") {
+    return false;
   }
   try {
-    const nav = navigator as Navigator & {
-      deviceMemory?: number;
-      connection?: { saveData?: boolean };
-    };
-    if (nav.connection?.saveData) return "low";
-    if (typeof nav.deviceMemory === "number" && nav.deviceMemory <= 4) return "low";
-    if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) return "low";
+    const ua = navigator.userAgent || "";
+    if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) return true;
+    // iPadOS 13+ reports as Mac but has multi-touch
+    if (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) {
+      return true;
+    }
+    // Narrow touch-first viewport only (not desktop windows that happen to be resized)
     if (
       window.matchMedia("(pointer: coarse)").matches &&
-      window.innerWidth <= 900
+      window.matchMedia("(max-width: 720px)").matches
     ) {
-      return "low";
-    }
-    if ((navigator.hardwareConcurrency ?? 8) <= 4 && window.innerWidth <= 1100) {
-      return "low";
+      return true;
     }
   } catch {
     /* ignore */
   }
-  return "high";
+  return false;
+}
+
+function detectRenderQuality(): RenderQuality {
+  return isPhoneOrTablet() ? "low" : "high";
+}
+
+/** Layout zoom helpers — viewport only, independent of GPU quality. */
+function isPhoneLayoutViewport(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth <= 720;
 }
 
 interface AnimTarget {
@@ -220,6 +231,12 @@ export class WorldView {
     this.setupLights();
     this.scene.add(this.root);
     this.root.add(this.entityRoot);
+
+    try {
+      document.body.dataset.renderQuality = this.quality;
+    } catch {
+      /* ignore */
+    }
 
     window.addEventListener("resize", () => this.onResize());
     this.bindOrbitControls();
@@ -458,7 +475,9 @@ export class WorldView {
     this.keyLight.position.set(8, 16, 6);
     this.keyLight.castShadow = this.shadowsEnabled;
     if (this.shadowsEnabled) {
-      this.keyLight.shadow.mapSize.set(1024, 1024);
+      // Full soft shadows on PC; keep maps modest only if somehow enabled on low.
+      const map = low ? 1024 : 2048;
+      this.keyLight.shadow.mapSize.set(map, map);
       this.keyLight.shadow.camera.near = 1;
       this.keyLight.shadow.camera.far = 40;
       this.keyLight.shadow.camera.left = -16;
@@ -473,7 +492,7 @@ export class WorldView {
     this.rimLight.position.set(-10, 8, -6);
     this.scene.add(this.rimLight);
 
-    // Point lights are expensive on mobile tile GPUs — skip fill on low.
+    // Point fill — full on desktop; skip on mobile low.
     this.fillLight = new THREE.PointLight(0xff9f6e, low ? 0 : 0.48, 30);
     this.fillLight.position.set(0, 6, 0);
     if (!low) this.scene.add(this.fillLight);
@@ -513,29 +532,30 @@ export class WorldView {
     else this.applyCamera();
   }
 
-  /** Orthographic zoom / orbit distance for current viewport (portrait phones zoom in). */
+  /** Orthographic zoom / orbit distance. Phone zoom is viewport-based only — not GPU quality. */
   private refitCameraToLevel() {
     if (!this.level) return;
     const span = Math.max(this.level.width, this.level.height);
     const portrait = this.isCompactPortrait;
-    const phone =
-      portrait ||
-      this.quality === "low" ||
-      (typeof window !== "undefined" && window.innerWidth <= 720);
-    const minF = portrait ? 4.35 : phone ? 5.1 : 5.8;
-    const spanMul = portrait ? 0.52 : phone ? 0.62 : 0.72;
+    // Desktop/PC always use the original framing, even if quality were low.
+    const phone = portrait || isPhoneLayoutViewport();
+    if (!phone) {
+      // Original desktop fit
+      this.baseFrustum = Math.max(5.8, span * 0.72);
+      this.frustumSize = this.baseFrustum;
+      this.camDistance = THREE.MathUtils.clamp(14 + span * 0.55, 16, 28);
+      this.applyCamera();
+      return;
+    }
+    const minF = portrait ? 4.35 : 5.1;
+    const spanMul = portrait ? 0.52 : 0.62;
     let base = Math.max(minF, span * spanMul);
     if (portrait) base *= 0.92;
-    // Keep user zoom relative to previous base when possible.
     const zoomRatio =
       this.baseFrustum > 0.01 ? this.frustumSize / this.baseFrustum : 1;
     this.baseFrustum = base;
     this.frustumSize = THREE.MathUtils.clamp(base * zoomRatio, 3.5, 18);
-    this.camDistance = THREE.MathUtils.clamp(
-      (phone ? 12 : 14) + span * (phone ? 0.48 : 0.55),
-      phone ? 13 : 16,
-      phone ? 24 : 28
-    );
+    this.camDistance = THREE.MathUtils.clamp(12 + span * 0.48, 13, 24);
     this.applyCamera();
   }
 
@@ -587,7 +607,7 @@ export class WorldView {
 
     // Soft mid foundation — reads as ground under the board.
     const midR = span * 2.2 + 4;
-    const discSeg = this.quality === "low" ? 24 : 72;
+    const discSeg = this.quality === "low" ? 32 : 72;
     const midDisc = new THREE.Mesh(
       new THREE.CircleGeometry(midR, discSeg),
       new THREE.MeshStandardMaterial({
@@ -602,9 +622,9 @@ export class WorldView {
     this.root.add(midDisc);
 
     // Huge sky-matched ground so orbit/zoom never shows a hard disc rim or void "cut".
-    // Orthographic max frustum ~18 @ 16:9 needs radius well past ~50.
-    const voidR = Math.max(64, span * 6 + 28);
-    const voidSeg = this.quality === "low" ? 32 : 80;
+    // Extra large on desktop — extreme camera angles still stay inside the disc.
+    const voidR = Math.max(this.quality === "low" ? 72 : 110, span * 9 + 48);
+    const voidSeg = this.quality === "low" ? 40 : 96;
     const voidGround = new THREE.Mesh(
       new THREE.CircleGeometry(voidR, voidSeg),
       new THREE.MeshBasicMaterial({
@@ -617,8 +637,9 @@ export class WorldView {
     this.root.add(voidGround);
 
     // Gentle rim between mid ground and void (slightly darker, fog-friendly).
+    const rimSeg = this.quality === "low" ? 32 : 72;
     const rim = new THREE.Mesh(
-      new THREE.RingGeometry(midR * 0.92, midR * 1.35, 72),
+      new THREE.RingGeometry(midR * 0.92, midR * 1.35, rimSeg),
       new THREE.MeshBasicMaterial({
         color: this.theme.fog,
         transparent: true,
@@ -660,11 +681,11 @@ export class WorldView {
     this.addPlayer(state.player.x, state.player.y);
 
     // Center camera on map and fit frustum / orbit distance to board size.
-    // Smaller frustum = larger board on screen (important for phone portrait).
-    this.camTarget.set(0, 0.15, 0);
+    this.camTarget.set(0, 0.2, 0);
     this.azimuth = Math.PI / 4;
     this.polar = this.isCompactPortrait ? 0.88 : 0.95;
     this.refitCameraToLevel();
+    // Fresh level: snap to fitted frustum (drop previous zoom ratio).
     this.frustumSize = this.baseFrustum;
     this.applyCamera();
     this.syncImmediate(state);
