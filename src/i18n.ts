@@ -53,6 +53,11 @@ type Dict = {
   teleported: string;
   adLoading: string;
   platformMuted: string;
+  loading: string;
+  loadingEngine: string;
+  loadingWorld: string;
+  loadingAudio: string;
+  loadingReady: string;
   chapter: (n: number) => string;
   progressFresh: (levels: number) => string;
   progressMid: (done: number, total: number, stars: number, maxStars: number) => string;
@@ -117,6 +122,11 @@ const en: Dict = {
   teleported: "Teleported!",
   adLoading: "Please wait…",
   platformMuted: "Sound off (site)",
+  loading: "Loading…",
+  loadingEngine: "Starting engine…",
+  loadingWorld: "Building world…",
+  loadingAudio: "Loading soundtrack…",
+  loadingReady: "Ready",
   chapter: (n) => `Chapter ${n}`,
   progressFresh: (levels) => `${levels} levels · 5 chapters`,
   progressMid: (done, total, stars, maxStars) =>
@@ -191,6 +201,11 @@ const ru: Dict = {
   teleported: "Телепорт!",
   adLoading: "Подождите…",
   platformMuted: "Звук выкл (сайт)",
+  loading: "Загрузка…",
+  loadingEngine: "Запуск движка…",
+  loadingWorld: "Сборка мира…",
+  loadingAudio: "Загрузка музыки…",
+  loadingReady: "Готово",
   chapter: (n) => `Глава ${n}`,
   progressFresh: (levels) => `${levels} уровней · 5 глав`,
   progressMid: (done, total, stars, maxStars) =>

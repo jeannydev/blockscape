@@ -57,6 +57,80 @@ body {
   z-index: 1;
 }
 
+/* —— Boot loader (blocks play until ready) —— */
+.boot-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 40%, rgba(80, 120, 220, 0.14), transparent 70%),
+    #070b16;
+  transition: opacity 0.45s ease, visibility 0.45s ease;
+}
+
+.boot-loader.is-done {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+body.booting #ui,
+body.booting #menu-fx {
+  pointer-events: none !important;
+  visibility: hidden;
+}
+
+.boot-loader-inner {
+  width: min(320px, 86vw);
+  text-align: center;
+  padding: 8px;
+}
+
+.boot-kicker {
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.boot-logo {
+  font-family: var(--display);
+  font-size: clamp(1.8rem, 6vw, 2.4rem);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  margin-bottom: 28px;
+  text-shadow: 0 0 28px rgba(110, 168, 255, 0.35);
+}
+
+.boot-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.boot-bar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #5a8cff, #a8c8ff, #ffc46e);
+  box-shadow: 0 0 12px rgba(110, 168, 255, 0.55);
+  transition: width 0.28s ease;
+}
+
+.boot-status {
+  font-size: 0.82rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  min-height: 1.2em;
+}
+
 #game-canvas {
   position: absolute;
   inset: 0;
@@ -1127,6 +1201,25 @@ body.ad-locked #ad-block {
     display: block;
   }
 
+  /* Cheaper overlays on phones — blur/grain are GPU-heavy */
+  .menu-fx-grain {
+    display: none;
+  }
+
+  .screen-menu,
+  .hud-main,
+  .menu-shell-panel,
+  .toast {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .menu-fx-glow,
+  .menu-fx-rays {
+    animation: none !important;
+    opacity: 0.55;
+  }
+
   .screen-menu {
     justify-content: center;
     padding-left: var(--pad);
@@ -1307,6 +1400,17 @@ body.ad-locked #ad-block {
 }
 
 @media (hover: none) and (pointer: coarse) {
+  .menu-fx-grain {
+    display: none;
+  }
+
+  .screen-menu,
+  .hud-main,
+  .menu-shell-panel {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
   .desktop-only {
     display: none;
   }

@@ -36,7 +36,7 @@ This repo deploys **built** `dist/` via GitHub Actions (not the source tree).
 1. Repo → **Settings → Pages**
 2. **Source:** GitHub Actions
 3. Push to `main` (or run the **Deploy GitHub Pages** workflow)
-4. Site URL: `https://ayturgan.github.io/blockscape/`
+4. Site URL: `https://jeannydev.github.io/blockscape/`
 
 Opening the repo’s raw `index.html` on GitHub (or `file://`) will show unstyled HTML — that is expected.
 

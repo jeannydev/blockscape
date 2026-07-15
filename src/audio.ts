@@ -253,6 +253,50 @@ export function bgmTrackForLevel(levelId: number): BgmTrack {
   return "tactics";
 }
 
+/**
+ * Warm the BGM element for a track (download / decode) without playing.
+ * Safe to call during boot; resolves even if the request fails or times out.
+ */
+export function preloadBgm(track: BgmTrack, timeoutMs = 10000): Promise<void> {
+  const el = ensureMusicEl();
+  const url = encodeURI(BGM_URLS[track]);
+  const abs = new URL(url, window.location.href).href;
+
+  if (currentTrack === track && el.src && !el.error && el.readyState >= 3) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      el.removeEventListener("canplaythrough", done);
+      el.removeEventListener("error", done);
+      resolve();
+    };
+
+    currentTrack = track;
+    if (el.src !== abs) {
+      el.src = url;
+      try {
+        el.load();
+      } catch {
+        /* ignore */
+      }
+    }
+
+    if (el.readyState >= 3) {
+      done();
+      return;
+    }
+
+    el.addEventListener("canplaythrough", done, { once: true });
+    el.addEventListener("error", done, { once: true });
+    window.setTimeout(done, timeoutMs);
+  });
+}
+
 /** Soft-switch BGM; no-ops if already on this track. Does not play while tab is hidden. */
 export function playBgm(track: BgmTrack) {
   musicWanted = true;

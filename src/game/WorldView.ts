@@ -71,6 +71,36 @@ function smoothstep(t: number) {
   return t * t * (3 - 2 * t);
 }
 
+/** Mobile / low-end profile for WebGL cost. */
+export type RenderQuality = "high" | "low";
+
+function detectRenderQuality(): RenderQuality {
+  if (typeof window === "undefined" || typeof navigator === "undefined") {
+    return "high";
+  }
+  try {
+    const nav = navigator as Navigator & {
+      deviceMemory?: number;
+      connection?: { saveData?: boolean };
+    };
+    if (nav.connection?.saveData) return "low";
+    if (typeof nav.deviceMemory === "number" && nav.deviceMemory <= 4) return "low";
+    if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) return "low";
+    if (
+      window.matchMedia("(pointer: coarse)").matches &&
+      window.innerWidth <= 900
+    ) {
+      return "low";
+    }
+    if ((navigator.hardwareConcurrency ?? 8) <= 4 && window.innerWidth <= 1100) {
+      return "low";
+    }
+  } catch {
+    /* ignore */
+  }
+  return "high";
+}
+
 interface AnimTarget {
   mesh: THREE.Object3D;
   from: THREE.Vector3;
@@ -84,6 +114,7 @@ export class WorldView {
   readonly camera: THREE.OrthographicCamera;
   readonly renderer: THREE.WebGLRenderer;
   readonly canvas: HTMLCanvasElement;
+  readonly quality: RenderQuality;
 
   private root = new THREE.Group();
   private entityRoot = new THREE.Group();
@@ -94,6 +125,10 @@ export class WorldView {
   private flameCtx: CanvasRenderingContext2D | null = null;
   private flameTexture: THREE.CanvasTexture | null = null;
   private flameFlip = 1;
+  private flameFrame = 0;
+  private readonly flameEveryN: number;
+  private readonly maxPixelRatio: number;
+  private readonly shadowsEnabled: boolean;
   private crateMeshes = new Map<number, THREE.Mesh>();
   private doorMeshes = new Map<string, THREE.Mesh>();
   private plateMeshes: Array<{ mesh: THREE.Mesh; pos: Vec2 }> = [];
@@ -139,6 +174,12 @@ export class WorldView {
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
+    this.quality = detectRenderQuality();
+    const low = this.quality === "low";
+    this.maxPixelRatio = low ? 1.25 : Math.min(window.devicePixelRatio || 1, 2);
+    this.shadowsEnabled = !low;
+    this.flameEveryN = low ? 3 : 1;
+
     const aspect = window.innerWidth / Math.max(1, window.innerHeight);
     const frustum = this.frustumSize;
     this.camera = new THREE.OrthographicCamera(
@@ -154,16 +195,24 @@ export class WorldView {
 
     this.renderer = new THREE.WebGLRenderer({
       canvas,
-      antialias: true,
+      antialias: !low,
       alpha: true,
+      powerPreference: low ? "low-power" : "high-performance",
+      stencil: false,
+      depth: true,
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.maxPixelRatio));
+    this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+    this.renderer.shadowMap.enabled = this.shadowsEnabled;
+    this.renderer.shadowMap.type = low
+      ? THREE.BasicShadowMap
+      : THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    // ACES is pretty but costly on mobile GPUs.
+    this.renderer.toneMapping = low
+      ? THREE.NoToneMapping
+      : THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = low ? 1 : 1.15;
 
     this.scene.background = new THREE.Color(COLORS.void);
     this.scene.fog = new THREE.Fog(COLORS.void, 14, 40);
@@ -397,32 +446,37 @@ export class WorldView {
   }
 
   private setupLights() {
-    this.ambientLight = new THREE.AmbientLight(0x8aa0d0, 0.62);
+    const low = this.quality === "low";
+    // Slightly brighter ambient when shadows are off so the scene stays readable.
+    this.ambientLight = new THREE.AmbientLight(0x8aa0d0, low ? 0.85 : 0.62);
     this.scene.add(this.ambientLight);
 
-    this.hemiLight = new THREE.HemisphereLight(0xb8c8ff, 0x1a1028, 0.68);
+    this.hemiLight = new THREE.HemisphereLight(0xb8c8ff, 0x1a1028, low ? 0.82 : 0.68);
     this.scene.add(this.hemiLight);
 
-    this.keyLight = new THREE.DirectionalLight(0xfff0e0, 1.25);
+    this.keyLight = new THREE.DirectionalLight(0xfff0e0, low ? 1.05 : 1.25);
     this.keyLight.position.set(8, 16, 6);
-    this.keyLight.castShadow = true;
-    this.keyLight.shadow.mapSize.set(2048, 2048);
-    this.keyLight.shadow.camera.near = 1;
-    this.keyLight.shadow.camera.far = 40;
-    this.keyLight.shadow.camera.left = -16;
-    this.keyLight.shadow.camera.right = 16;
-    this.keyLight.shadow.camera.top = 16;
-    this.keyLight.shadow.camera.bottom = -16;
-    this.keyLight.shadow.bias = -0.0005;
+    this.keyLight.castShadow = this.shadowsEnabled;
+    if (this.shadowsEnabled) {
+      this.keyLight.shadow.mapSize.set(1024, 1024);
+      this.keyLight.shadow.camera.near = 1;
+      this.keyLight.shadow.camera.far = 40;
+      this.keyLight.shadow.camera.left = -16;
+      this.keyLight.shadow.camera.right = 16;
+      this.keyLight.shadow.camera.top = 16;
+      this.keyLight.shadow.camera.bottom = -16;
+      this.keyLight.shadow.bias = -0.0005;
+    }
     this.scene.add(this.keyLight);
 
-    this.rimLight = new THREE.DirectionalLight(0x6ea8ff, 0.6);
+    this.rimLight = new THREE.DirectionalLight(0x6ea8ff, low ? 0.45 : 0.6);
     this.rimLight.position.set(-10, 8, -6);
     this.scene.add(this.rimLight);
 
-    this.fillLight = new THREE.PointLight(0xff9f6e, 0.48, 30);
+    // Point lights are expensive on mobile tile GPUs — skip fill on low.
+    this.fillLight = new THREE.PointLight(0xff9f6e, low ? 0 : 0.48, 30);
     this.fillLight.position.set(0, 6, 0);
-    this.scene.add(this.fillLight);
+    if (!low) this.scene.add(this.fillLight);
   }
 
   private applyTheme(level: LevelRuntime) {
@@ -451,7 +505,10 @@ export class WorldView {
   }
 
   private onResize() {
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setPixelRatio(
+      Math.min(window.devicePixelRatio || 1, this.maxPixelRatio)
+    );
+    this.renderer.setSize(window.innerWidth, window.innerHeight, false);
     this.applyCamera();
   }
 
@@ -498,13 +555,14 @@ export class WorldView {
     });
     const base = new THREE.Mesh(baseGeo, baseMat);
     base.position.set(0, -0.32, 0);
-    base.receiveShadow = true;
+    base.receiveShadow = this.shadowsEnabled;
     this.root.add(base);
 
     // Soft mid foundation — reads as ground under the board.
     const midR = span * 2.2 + 4;
+    const discSeg = this.quality === "low" ? 24 : 72;
     const midDisc = new THREE.Mesh(
-      new THREE.CircleGeometry(midR, 72),
+      new THREE.CircleGeometry(midR, discSeg),
       new THREE.MeshStandardMaterial({
         color: this.theme.base,
         roughness: 1,
@@ -513,14 +571,15 @@ export class WorldView {
     );
     midDisc.rotation.x = -Math.PI / 2;
     midDisc.position.y = -0.52;
-    midDisc.receiveShadow = true;
+    midDisc.receiveShadow = this.shadowsEnabled;
     this.root.add(midDisc);
 
     // Huge sky-matched ground so orbit/zoom never shows a hard disc rim or void "cut".
     // Orthographic max frustum ~18 @ 16:9 needs radius well past ~50.
     const voidR = Math.max(64, span * 6 + 28);
+    const voidSeg = this.quality === "low" ? 32 : 80;
     const voidGround = new THREE.Mesh(
-      new THREE.CircleGeometry(voidR, 80),
+      new THREE.CircleGeometry(voidR, voidSeg),
       new THREE.MeshBasicMaterial({
         color: this.theme.sky,
         depthWrite: true,
@@ -589,6 +648,9 @@ export class WorldView {
 
   /** A small, deterministic diorama around the board. It gives every level depth without affecting play space. */
   private addBackdrop(level: LevelRuntime) {
+    // Decorative props — skip on low quality for fill-rate / draw-call savings.
+    if (this.quality === "low") return;
+
     const span = Math.max(level.width, level.height);
     // Keep props close to the board so they don't silhouette against the void at shallow angles.
     const radius = span * 0.62 + 1.8;
@@ -641,11 +703,14 @@ export class WorldView {
     const mesh = new THREE.Mesh(geo, mat);
     const pos = this.gridToWorld(x, y, 0);
     mesh.position.copy(pos);
-    mesh.receiveShadow = true;
-    mesh.castShadow = true;
+    mesh.receiveShadow = this.shadowsEnabled;
+    mesh.castShadow = this.shadowsEnabled;
     this.root.add(mesh);
 
     // A recessed panel gives the otherwise simple grid a crafted, modular look.
+    // Skip translucent inlays on low — many transparent draws hurt mobile.
+    if (this.quality === "low") return;
+
     const inlay = new THREE.Mesh(
       new THREE.BoxGeometry(0.72, 0.012, 0.72),
       new THREE.MeshStandardMaterial({
@@ -685,8 +750,8 @@ export class WorldView {
     );
     const pos = this.gridToWorld(x, y, h / 2);
     body.position.copy(pos);
-    body.castShadow = true;
-    body.receiveShadow = true;
+    body.castShadow = this.shadowsEnabled;
+    body.receiveShadow = this.shadowsEnabled;
     this.root.add(body);
 
     const top = new THREE.Mesh(
@@ -700,7 +765,7 @@ export class WorldView {
       })
     );
     top.position.set(pos.x, h + 0.02, pos.z);
-    top.castShadow = true;
+    top.castShadow = this.shadowsEnabled;
     this.root.add(top);
   }
 
@@ -764,10 +829,13 @@ export class WorldView {
       roughness: 0.4,
       metalness: 0.3,
     });
-    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 0.08, 20), mat);
+    const mesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.28, 0.32, 0.08, this.quality === "low" ? 10 : 20),
+      mat
+    );
     const pos = this.gridToWorld(x, y, 0.12);
     mesh.position.copy(pos);
-    mesh.receiveShadow = true;
+    mesh.receiveShadow = this.shadowsEnabled;
     const rim = new THREE.Mesh(
       new THREE.TorusGeometry(0.26, 0.028, 8, 20),
       new THREE.MeshStandardMaterial({ color: this.theme.accent, emissive: this.theme.accent, emissiveIntensity: 0.3 })
@@ -946,7 +1014,7 @@ export class WorldView {
     const pos = this.gridToWorld(x, y, open ? 1.2 : 0.55);
     mesh.position.copy(pos);
     mesh.rotation.y = this.doorYawFromNeighbors(x, y);
-    mesh.castShadow = true;
+    mesh.castShadow = this.shadowsEnabled;
     const badge = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.11),
       new THREE.MeshStandardMaterial({ color: this.theme.accentWarm, emissive: this.theme.accentWarm, emissiveIntensity: 0.55, metalness: 0.55, roughness: 0.25 })
@@ -974,8 +1042,8 @@ export class WorldView {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.72, 0.72), mat);
     const pos = this.gridToWorld(x, y, 0.48);
     mesh.position.copy(pos);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    mesh.castShadow = this.shadowsEnabled;
+    mesh.receiveShadow = this.shadowsEnabled;
     this.entityRoot.add(mesh);
     this.crateMeshes.set(id, mesh);
 
@@ -1014,7 +1082,7 @@ export class WorldView {
     const accent = this.theme.accent;
     // Soft ground glow (still 3D, tiny)
     const aura = new THREE.Mesh(
-      new THREE.CircleGeometry(0.3, 28),
+      new THREE.CircleGeometry(0.3, this.quality === "low" ? 12 : 28),
       new THREE.MeshBasicMaterial({
         color: accent,
         transparent: true,
@@ -1026,8 +1094,8 @@ export class WorldView {
     aura.position.y = -0.4;
     root.add(aura);
 
-    // Canvas texture for the flame sprite
-    const size = 128;
+    // Canvas texture for the flame sprite (smaller on low-end = less 2D fill per frame)
+    const size = this.quality === "low" ? 64 : 128;
     const canvas = document.createElement("canvas");
     canvas.width = size;
     canvas.height = size;
@@ -1080,6 +1148,7 @@ export class WorldView {
 
     const w = canvas.width;
     const h = canvas.height;
+    const sc = w / 128;
     const cx = w * 0.5;
     const cy = h * 0.58;
     ctx.clearRect(0, 0, w, h);
@@ -1087,16 +1156,17 @@ export class WorldView {
     const accent = this.hexRgb(this.theme.accent);
     const warm = this.hexRgb(this.theme.accentWarm);
     const flick = Math.sin(t * 7.2) * 0.04 + Math.sin(t * 11.1) * 0.025;
-    const bob = Math.sin(t * 2.6) * 3;
+    const bob = Math.sin(t * 2.6) * 3 * sc;
+    const glowR = 52 * sc;
 
     // Soft outer glow
-    const glow = ctx.createRadialGradient(cx, cy + bob, 4, cx, cy + bob, 52);
+    const glow = ctx.createRadialGradient(cx, cy + bob, 4 * sc, cx, cy + bob, glowR);
     glow.addColorStop(0, `rgba(${accent.r},${accent.g},${accent.b},0.45)`);
     glow.addColorStop(0.55, `rgba(${accent.r},${accent.g},${accent.b},0.12)`);
     glow.addColorStop(1, `rgba(${accent.r},${accent.g},${accent.b},0)`);
     ctx.fillStyle = glow;
     ctx.beginPath();
-    ctx.arc(cx, cy + bob, 52, 0, Math.PI * 2);
+    ctx.arc(cx, cy + bob, glowR, 0, Math.PI * 2);
     ctx.fill();
 
     // Flame tongues (layered teardrops)
@@ -1109,12 +1179,12 @@ export class WorldView {
       alpha: number
     ) => {
       ctx.save();
-      ctx.translate(cx + ox, cy + oy + bob);
-      ctx.scale(scaleX, scaleY);
+      ctx.translate(cx + ox * sc, cy + oy * sc + bob);
+      ctx.scale(scaleX * sc, scaleY * sc);
       ctx.globalAlpha = alpha;
       ctx.fillStyle = color;
       ctx.beginPath();
-      // Teardrop path (point up)
+      // Teardrop path (point up) — units relative to 128px art
       ctx.moveTo(0, -38);
       ctx.bezierCurveTo(18, -20, 22, 8, 0, 28);
       ctx.bezierCurveTo(-22, 8, -18, -20, 0, -38);
@@ -1140,12 +1210,13 @@ export class WorldView {
     // Warm tip spark
     drawTongue(2 + flick * 20, -18, 0.28, 0.4, tip, 0.7);
 
-    // Embers
-    for (let i = 0; i < 5; i++) {
+    // Embers (fewer on low)
+    const emberCount = this.quality === "low" ? 2 : 5;
+    for (let i = 0; i < emberCount; i++) {
       const phase = t * (1.8 + i * 0.35) + i * 1.7;
-      const ex = cx + Math.sin(phase) * (14 + i * 3);
-      const ey = cy + bob - 28 - ((t * 28 + i * 17) % 40);
-      const er = 1.5 + (i % 3) * 0.6;
+      const ex = cx + Math.sin(phase) * (14 + i * 3) * sc;
+      const ey = cy + bob - (28 + ((t * 28 + i * 17) % 40)) * sc;
+      const er = (1.5 + (i % 3) * 0.6) * sc;
       ctx.fillStyle = `rgba(${warm.r},${warm.g},${warm.b},${0.35 + (i % 2) * 0.2})`;
       ctx.beginPath();
       ctx.arc(ex, ey, er, 0, Math.PI * 2);
@@ -1301,8 +1372,15 @@ export class WorldView {
   }
 
   update() {
+    // Do not burn GPU while the tab is in the background.
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      this.clock.getDelta();
+      return;
+    }
+
     const dt = Math.min(this.clock.getDelta(), 0.05);
     this.bobT += dt;
+    const low = this.quality === "low";
 
     // animations
     for (let i = this.anims.length - 1; i >= 0; i--) {
@@ -1322,7 +1400,10 @@ export class WorldView {
 
     // 2D flame billboard: redraw + always face camera + bob + flip
     if (this.playerAvatar && this.playerMesh) {
-      this.paintFlame(this.bobT);
+      this.flameFrame++;
+      if (this.flameFrame % this.flameEveryN === 0) {
+        this.paintFlame(this.bobT);
+      }
       this.playerAvatar.position.y = Math.sin(this.bobT * 2.5) * 0.03;
       // Billboard: copy camera orientation so sprite stays readable
       this.playerAvatar.quaternion.copy(this.camera.quaternion);
@@ -1331,27 +1412,35 @@ export class WorldView {
       this.playerAvatar.scale.set(this.flameFlip * bobScale, bobScale, 1);
     }
 
-    // pulse materials
-    const pulse = 0.35 + Math.sin(this.bobT * 2.5) * 0.15;
-    for (const m of this.pulseMats) {
-      m.emissiveIntensity = pulse;
+    // pulse materials (every other frame on low)
+    if (!low || this.flameFrame % 2 === 0) {
+      const pulse = 0.35 + Math.sin(this.bobT * 2.5) * 0.15;
+      for (const m of this.pulseMats) {
+        m.emissiveIntensity = pulse;
+      }
     }
 
     for (let i = 0; i < this.goalMarkers.length; i++) {
       const goal = this.goalMarkers[i];
-      const s = 1 + Math.sin(this.bobT * 2.2 + i) * 0.08;
-      goal.scale.setScalar(s);
-      goal.rotation.y += dt * 0.7;
+      if (!low) {
+        const s = 1 + Math.sin(this.bobT * 2.2 + i) * 0.08;
+        goal.scale.setScalar(s);
+      }
+      goal.rotation.y += dt * (low ? 0.35 : 0.7);
     }
     for (let i = 0; i < this.portalRings.length; i++) {
       const portal = this.portalRings[i];
-      portal.rotation.y += dt * (i % 2 ? -1.4 : 1.4);
-      portal.position.y = Math.sin(this.bobT * 2 + i) * 0.025;
+      portal.rotation.y += dt * (i % 2 ? -1.4 : 1.4) * (low ? 0.6 : 1);
+      if (!low) {
+        portal.position.y = Math.sin(this.bobT * 2 + i) * 0.025;
+      }
     }
     for (let i = 0; i < this.crystalGems.length; i++) {
       const gem = this.crystalGems[i];
-      gem.rotation.y += dt * 1.2;
-      gem.position.y = 0.48 + Math.sin(this.bobT * 2.5 + i) * 0.018;
+      gem.rotation.y += dt * (low ? 0.6 : 1.2);
+      if (!low) {
+        gem.position.y = 0.48 + Math.sin(this.bobT * 2.5 + i) * 0.018;
+      }
     }
     for (let i = 0; i < this.ambientFloaters.length; i++) {
       const floater = this.ambientFloaters[i];
@@ -1375,9 +1464,9 @@ export class WorldView {
       }
     }
 
-    // Menu ambience: slow auto-orbit when idle
+    // Menu ambience: slow auto-orbit when idle (slower on low)
     if (this.autoOrbit && !this.userOrbiting) {
-      this.azimuth += dt * 0.12;
+      this.azimuth += dt * (low ? 0.06 : 0.12);
       this.applyCamera();
     }
 

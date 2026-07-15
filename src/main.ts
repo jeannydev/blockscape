@@ -19,6 +19,7 @@ import {
   isUserMuted,
   loadMutePref,
   playBgm,
+  preloadBgm,
   resumeAudio,
   setMuted,
   setMusicVolume,
@@ -345,16 +346,81 @@ onMuteUiChange(() => {
   syncSettingsUi();
 });
 
+const bootLoader = document.getElementById("boot-loader");
+const bootBarFill = document.getElementById("boot-bar-fill");
+const bootStatus = document.getElementById("boot-status");
+
+function setBootProgress(
+  pct: number,
+  status?:
+    | "loading"
+    | "loadingEngine"
+    | "loadingWorld"
+    | "loadingAudio"
+    | "loadingReady"
+) {
+  const p = Math.max(0, Math.min(100, pct));
+  if (bootBarFill) bootBarFill.style.width = `${p}%`;
+  if (bootStatus && status) {
+    bootStatus.textContent = t()[status];
+  }
+}
+
+function finishBootLoader() {
+  document.body.classList.remove("booting");
+  if (!bootLoader) return;
+  bootLoader.classList.add("is-done");
+  bootLoader.setAttribute("aria-busy", "false");
+  window.setTimeout(() => bootLoader.remove(), 500);
+}
+
 async function boot() {
   loadMutePref();
   loadLangPref();
   updateMuteBtn();
 
+  // Localize loader immediately (before full applyLocale).
+  const s0 = t();
+  text("boot-kicker", s0.eyebrow);
+  setBootProgress(4, "loading");
+
   try {
+    setBootProgress(12, "loadingEngine");
     // Init SDK first so loadingStart/Stop metrics can report to the platform.
     await initPlatform();
     loadingStart();
+
+    setBootProgress(35, "loadingWorld");
     await game.bootstrap();
+
+    // Let the first frames warm shaders / layout.
+    setBootProgress(55, "loadingWorld");
+    await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+
+    setBootProgress(72, "loadingAudio");
+    // Warm the track the player is about to hear (continue target or menu).
+    const prog = game.getProgress();
+    const unlocked = Math.min(Math.max(prog.unlocked || 1, 1), LEVELS.length);
+    let warmLevel = unlocked;
+    for (let id = 1; id <= unlocked; id++) {
+      if (!prog.completed.includes(id)) {
+        warmLevel = id;
+        break;
+      }
+      if (id === unlocked) {
+        warmLevel = Math.min(
+          Math.max(prog.lastPlayed ?? unlocked, 1),
+          LEVELS.length
+        );
+      }
+    }
+    const track =
+      getEnvironment() === "crazygames"
+        ? bgmTrackForLevel(warmLevel)
+        : ("diorama" as const);
+    await preloadBgm(track);
+
+    setBootProgress(92, "loadingReady");
   } catch (e) {
     console.error("[Blockscape] boot error", e);
   } finally {
@@ -368,6 +434,7 @@ async function boot() {
   applyLocale();
   bindMenuHover();
   syncSettingsUi();
+  setBootProgress(100, "loadingReady");
 
   // CrazyGames Full Launch requires 0 clicks to play; local/dev opens the menu.
   if (getEnvironment() === "crazygames") {
@@ -377,6 +444,10 @@ async function boot() {
     game.setScreen("title");
     playBgm("diorama");
   }
+
+  // Small beat so the bar hits 100% before fade-out.
+  await new Promise((r) => setTimeout(r, 180));
+  finishBootLoader();
 }
 
 // Resume WebAudio + BGM after first gesture + after iOS interrupt/background.

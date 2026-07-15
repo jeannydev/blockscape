@@ -21,7 +21,19 @@
       rel="stylesheet"
     />
   </head>
-  <body>
+  <body class="booting">
+    <!-- Blocks interaction until JS finishes boot (SDK, WebGL, progress, audio). -->
+    <div id="boot-loader" class="boot-loader" role="status" aria-live="polite" aria-busy="true">
+      <div class="boot-loader-inner">
+        <p class="boot-kicker" id="boot-kicker">2.5D ISOMETRIC PUZZLE</p>
+        <h1 class="boot-logo">Blockscape</h1>
+        <div class="boot-bar" aria-hidden="true">
+          <div id="boot-bar-fill" class="boot-bar-fill"></div>
+        </div>
+        <p id="boot-status" class="boot-status">Loading…</p>
+      </div>
+    </div>
+
     <div id="app">
       <canvas id="game-canvas"></canvas>
 

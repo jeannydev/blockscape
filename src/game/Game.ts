@@ -613,6 +613,11 @@ export class Game {
   }
 
   private loop = () => {
+    requestAnimationFrame(this.loop);
+    // Path stepping + render only when tab is visible (WorldView also no-ops draw).
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      return;
+    }
     this.view.update();
     // Continue click-path after each step animation finishes
     if (
@@ -624,6 +629,5 @@ export class Game {
     ) {
       this.stepAlongPath();
     }
-    requestAnimationFrame(this.loop);
   };
 }
